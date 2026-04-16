@@ -1,0 +1,58 @@
+<div class="stu-settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>ST Tweaks</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content" style="display: none;">
+            <div class="stu-options">
+                <label class="checkbox_label" for="stu_balance_columns">
+                    <input type="checkbox" id="stu_balance_columns" />
+                    <span>Balance extension columns</span>
+                </label>
+            </div>
+            <div class="stu-options">
+                <label class="checkbox_label" for="stu_responses_api">
+                    <input type="checkbox" id="stu_responses_api" />
+                    <span>Use Responses API for proxy</span>
+                </label>
+            </div>
+            <div class="stu-options">
+                <label class="checkbox_label" for="stu_fix_glm5">
+                    <input type="checkbox" id="stu_fix_glm5" />
+                    <span>Fix Z.AI glm-5 → glm-5.0</span>
+                </label>
+            </div>
+            <div class="stu-options">
+                <label class="checkbox_label" for="stu_zai_websearch">
+                    <input type="checkbox" id="stu_zai_websearch" />
+                    <span>Enable web search for Z.AI</span>
+                </label>
+            </div>
+            <div class="stu-options">
+                <label class="checkbox_label" for="stu_fix_thinking_adaptive">
+                    <input type="checkbox" id="stu_fix_thinking_adaptive" />
+                    <span>Fix Opus 4.7+ thinking (force adaptive)</span>
+                </label>
+                <div class="stu-suboptions">
+                    <label class="checkbox_label" for="stu_cache_system">
+                        <input type="checkbox" id="stu_cache_system" />
+                        <span>Cache system prompt</span>
+                    </label>
+                    <div class="stu-row">
+                        <label for="stu_cache_depth">Cache at depth</label>
+                        <input type="number" id="stu_cache_depth" class="text_pole stu-small" min="-1" step="1" value="-1" title="-1 disables message caching. Typical values: 2 or 3." />
+                    </div>
+                    <div class="stu-row">
+                        <label for="stu_cache_ttl">Cache TTL</label>
+                        <select id="stu_cache_ttl" class="text_pole stu-small">
+                            <option value="5m">5 minutes</option>
+                            <option value="1h">1 hour</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <span class="stu-version">ST Tweaks v1.0.0</span>
+        </div>
+    </div>
+</div>

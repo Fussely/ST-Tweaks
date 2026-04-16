@@ -74,6 +74,18 @@ jQuery(async () => {
         }
     });
 
+    // Safety net: 'xhigh' is only known to Opus 4.7+. On other models ST's native
+    // calculateClaudeBudgetTokens has no xhigh case and silently drops thinking
+    // entirely (adaptive models) or floors it to 1024 tokens (traditional thinking).
+    // Downgrade to 'max' so thinking still happens. The thinking-fix interceptor
+    // keeps 'xhigh' on Opus 4.7+ via its EFFORT_MAP.
+    eventSource.on(event_types.CHAT_COMPLETION_SETTINGS_READY, (generateData) => {
+        if (generateData.reasoning_effort === 'xhigh' &&
+            !/^claude-opus-4-([7-9]|\d{2,})/.test(String(generateData.model || ''))) {
+            generateData.reasoning_effort = 'max';
+        }
+    });
+
     // ── Z.AI Web Search ──────────────────────────────────────────
     const $zaiWebSearchCheckbox = $('#stu_zai_websearch');
     $zaiWebSearchCheckbox.prop('checked', settings.zaiWebSearch);

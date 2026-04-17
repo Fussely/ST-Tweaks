@@ -20,7 +20,10 @@ export function setXhighOption(enabled) {
 
     if (enabled) {
         if (!hasOption($select)) {
-            $select.append(`<option value="${OPTION_VALUE}">${OPTION_LABEL}</option>`);
+            const $option = $(`<option value="${OPTION_VALUE}">${OPTION_LABEL}</option>`);
+            const $maxOption = $select.find(`option[value="${FALLBACK_VALUE}"]`);
+            if ($maxOption.length) $maxOption.before($option);
+            else $select.append($option);
         }
         // If the saved setting is xhigh but ST reset the dropdown to blank/auto
         // during its own init (because the option didn't exist yet), restore it.

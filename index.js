@@ -86,6 +86,17 @@ jQuery(async () => {
         }
     });
 
+    // Opus 4.7+ rejects top_p and top_k as deprecated parameters. The thinking-fix
+    // interceptor already strips them when it fires, but on reasoning_effort='auto'
+    // it passes through to ST's native path which sends them and triggers a 400.
+    // Strip here so both paths produce a valid request.
+    eventSource.on(event_types.CHAT_COMPLETION_SETTINGS_READY, (generateData) => {
+        if (/^claude-opus-4-([7-9]|\d{2,})/.test(String(generateData.model || ''))) {
+            delete generateData.top_p;
+            delete generateData.top_k;
+        }
+    });
+
     // ── Z.AI Web Search ──────────────────────────────────────────
     const $zaiWebSearchCheckbox = $('#stu_zai_websearch');
     $zaiWebSearchCheckbox.prop('checked', settings.zaiWebSearch);

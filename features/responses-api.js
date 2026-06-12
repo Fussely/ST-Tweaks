@@ -1,11 +1,11 @@
-import { createLogger, probeLogger } from '../../st-logger/logger-client.js';
+import { createOptionalLogger, probeOptionalLogger } from './optional-logger.js';
 
 const GENERATE_URL = '/api/backends/chat-completions/generate';
 const PASSTHROUGH_PARAMS = [
     'temperature', 'top_p', 'top_k', 'stop',
 ];
 
-const log = createLogger('ST Tweaks');
+const log = createOptionalLogger('ST Tweaks');
 
 let getSettings;
 const originalFetch = window.fetch;
@@ -280,7 +280,7 @@ async function interceptedFetch(url, options) {
 export function initResponsesApi(getSettingsFn, eventSource, event_types) {
     getSettings = getSettingsFn;
     window.fetch = interceptedFetch;
-    probeLogger();
+    probeOptionalLogger();
 
     eventSource.on(event_types.MESSAGE_RECEIVED, () => {
         if (soundPending) {

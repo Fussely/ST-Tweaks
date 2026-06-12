@@ -9,9 +9,9 @@
 // beta headers, and prompt caching (driven by extension settings — config.yaml
 // values are server-side and not reachable from the browser).
 
-import { createLogger, probeLogger } from '../../st-logger/logger-client.js';
+import { createOptionalLogger, probeOptionalLogger } from './optional-logger.js';
 
-const log = createLogger('ST Tweaks/thinking-fix');
+const log = createOptionalLogger('ST Tweaks/thinking-fix');
 
 const GENERATE_URL = '/api/backends/chat-completions/generate';
 // reverse_proxy URLs already include the version segment (e.g. ".../v1"),
@@ -502,6 +502,6 @@ export function initThinkingFix(getSettingsFn) {
     // Capture at init time so we chain on top of any earlier interceptor (e.g. responses-api)
     originalFetch = window.fetch;
     window.fetch = interceptedFetch;
-    probeLogger();
+    probeOptionalLogger();
     log.info('installed (Opus 4.7+ adaptive bypass)');
 }

@@ -1,4 +1,4 @@
-import { extension_settings, renderExtensionTemplateAsync } from '../../../extensions.js';
+import { extensionNames, extension_settings, renderExtensionTemplateAsync } from '../../../extensions.js';
 import { saveSettingsDebounced, eventSource, event_types } from '../../../../script.js';
 import { initBalanceColumns, enableBalanceColumns, disableBalanceColumns } from './features/balance-columns.js';
 import { initResponsesApi } from './features/responses-api.js';
@@ -10,7 +10,7 @@ import { initOaiWebSearch, setOaiWebSearch } from './features/oai-websearch.js';
 import { initThinkingFix } from './features/thinking-fix.js';
 import { initXhighOption, setXhighOption } from './features/xhigh-option.js';
 
-const EXTENSION_NAME = 'third-party/st-tweaks';
+const EXTENSION_NAME = extensionNames.find(name => name.toLowerCase() === 'third-party/st-tweaks') ?? 'third-party/ST-Tweaks';
 const DEFAULTS = {
     balanceColumns: false,
     responsesApi: false,

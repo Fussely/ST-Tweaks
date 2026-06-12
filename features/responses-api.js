@@ -9,6 +9,47 @@ const log = createLogger('ST Tweaks');
 
 let getSettings;
 const originalFetch = window.fetch;
+let soundPending = false;
+
+function playMessageSound() {
+    try {
+        if (!getSettings().responsesApiSound) return;
+        const audio = document.getElementById('audio_message_sound');
+        if (!(audio instanceof HTMLAudioElement)) return;
+        audio.volume = 0.8;
+        audio.pause();
+        audio.currentTime = 0;
+        audio.play();
+    } catch (_) {}
+}
+
+// ── Content format conversion (Chat Completions → Responses API) ──
+
+function convertContentPart(part) {
+    switch (part.type) {
+        case 'text':
+            return { type: 'input_text', text: part.text };
+        case 'image_url': {
+            const converted = { type: 'input_image', image_url: part.image_url?.url ?? part.image_url };
+            if (part.image_url?.detail) converted.detail = part.image_url.detail;
+            return converted;
+        }
+        case 'video_url': {
+            const converted = { type: 'input_video', video_url: part.video_url?.url ?? part.video_url };
+            if (part.video_url?.detail) converted.detail = part.video_url.detail;
+            return converted;
+        }
+        case 'audio_url':
+            return { type: 'input_audio', audio_url: part.audio_url?.url ?? part.audio_url };
+        default:
+            return part;
+    }
+}
+
+function convertMessageContent(message) {
+    if (!Array.isArray(message.content)) return message;
+    return { ...message, content: message.content.map(convertContentPart) };
+}
 
 // ── Request transform ──────────────────────────────────────────────
 
@@ -26,7 +67,9 @@ function transformRequest(chat) {
             req.instructions = systemParts.join('\n\n');
         }
 
-        req.input = chat.messages.filter(m => m.role !== 'system');
+        req.input = chat.messages
+            .filter(m => m.role !== 'system')
+            .map(convertMessageContent);
     }
 
     // Renamed params
@@ -38,16 +81,30 @@ function transformRequest(chat) {
         if (chat[key] != null) req[key] = chat[key];
     }
 
-    // Reasoning effort: ST sends flat `reasoning_effort`, Responses API expects nested object
+    // Reasoning effort: ST sends flat `reasoning_effort`, Responses API expects nested object.
+    // ST's getReasoningEffort() already normalizes: auto→undefined, min→low, max→high.
     if (chat.reasoning_effort) {
-        const EFFORT_MAP = { min: 'minimal', max: 'xhigh' };
-        const effort = EFFORT_MAP[chat.reasoning_effort] ?? chat.reasoning_effort;
-        req.reasoning = { effort };
+        req.reasoning = { effort: chat.reasoning_effort };
     }
 
     // Verbosity: controls output length (GPT-5+)
     if (chat.verbosity) {
         req.text = { verbosity: chat.verbosity };
+    }
+
+    // Tools (e.g. web_search injected by provider-specific features)
+    if (Array.isArray(chat.tools) && chat.tools.length) {
+        req.tools = chat.tools;
+    }
+
+    // Claude web search: the server converts enable_web_search to a tool,
+    // but the Responses API path bypasses the server entirely.
+    if (chat.enable_web_search && /^claude-/.test(chat.model)) {
+        if (!req.tools) req.tools = [];
+        const already = req.tools.some(t => t.type === 'web_search_20250305');
+        if (!already) {
+            req.tools.push({ type: 'web_search_20250305', name: 'web_search' });
+        }
     }
 
     return req;
@@ -88,27 +145,37 @@ function transformResponse(resp) {
 
 // ── Synthetic SSE stream from a complete Chat Completions response ─
 
-function createSyntheticStream(chatData) {
+function createSyntheticStream(chatData, isClaude) {
     const encoder = new TextEncoder();
     const text = chatData.choices?.[0]?.message?.content ?? '';
 
     return new ReadableStream({
         start(controller) {
-            // Emit full text as a single delta
-            if (text) {
+            if (isClaude) {
+                // Claude source: ST's getStreamingReply expects {delta: {text, thinking}}
+                if (text) {
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                        delta: { text },
+                    })}\n\n`));
+                }
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({
-                    choices: [{ delta: { content: text } }],
+                    delta: { stop_reason: 'end_turn' },
                 })}\n\n`));
+            } else {
+                // OpenAI-shaped sources: ST expects {choices: [{delta: {content}}]}
+                if (text) {
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                        choices: [{ delta: { content: text } }],
+                    })}\n\n`));
+                }
+                const finalChunk = {
+                    choices: [{ delta: {}, finish_reason: 'stop', index: 0 }],
+                };
+                if (chatData.usage) {
+                    finalChunk.usage = chatData.usage;
+                }
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(finalChunk)}\n\n`));
             }
-
-            // Emit finish + usage
-            const finalChunk = {
-                choices: [{ delta: {}, finish_reason: 'stop', index: 0 }],
-            };
-            if (chatData.usage) {
-                finalChunk.usage = chatData.usage;
-            }
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(finalChunk)}\n\n`));
             controller.enqueue(encoder.encode('data: [DONE]\n\n'));
             controller.close();
         },
@@ -138,11 +205,15 @@ async function interceptedFetch(url, options) {
     }
 
     const wantsStream = !!chatBody.stream;
+    const isClaude = chatBody.chat_completion_source === 'claude';
     const apiKey = chatBody.proxy_password || '';
     const responsesUrl = proxyUrl.replace(/\/+$/, '') + '/responses';
     const responsesBody = transformRequest(chatBody);
 
     log.debug('Responses API request:', responsesBody);
+    if (responsesBody.reasoning) {
+        log.info(`Reasoning effort: ${responsesBody.reasoning.effort}`);
+    }
     log.info(`Responses API → ${responsesUrl} ${wantsStream ? '(simulated stream)' : '(non-stream)'}`);
 
     const headers = { 'Content-Type': 'application/json' };
@@ -154,6 +225,7 @@ async function interceptedFetch(url, options) {
             method: 'POST',
             headers,
             body: JSON.stringify(responsesBody),
+            signal: options?.signal,
         });
     } catch (err) {
         log.error('Upstream fetch failed:', err.message);
@@ -187,9 +259,11 @@ async function interceptedFetch(url, options) {
         log.debug(`Tokens — input: ${chatData.usage.prompt_tokens}  output: ${chatData.usage.completion_tokens}  total: ${chatData.usage.total_tokens}`);
     }
 
+    soundPending = true;
+
     // If ST expects streaming, synthesize an SSE stream from the complete response
     if (wantsStream) {
-        return new Response(createSyntheticStream(chatData), {
+        return new Response(createSyntheticStream(chatData, isClaude), {
             status: 200,
             headers: { 'Content-Type': 'text/event-stream' },
         });
@@ -203,8 +277,15 @@ async function interceptedFetch(url, options) {
 
 // ── Init ───────────────────────────────────────────────────────────
 
-export function initResponsesApi(getSettingsFn) {
+export function initResponsesApi(getSettingsFn, eventSource, event_types) {
     getSettings = getSettingsFn;
     window.fetch = interceptedFetch;
     probeLogger();
+
+    eventSource.on(event_types.MESSAGE_RECEIVED, () => {
+        if (soundPending) {
+            soundPending = false;
+            playMessageSound();
+        }
+    });
 }

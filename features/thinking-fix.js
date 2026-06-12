@@ -354,7 +354,8 @@ async function interceptedFetch(url, options) {
         return originalFetch.call(this, url, options);
     }
 
-    const effort = EFFORT_MAP[chatBody.reasoning_effort];
+    const customEffort = settings.customEffortEnabled ? settings.customEffort : '';
+    const effort = customEffort || EFFORT_MAP[chatBody.reasoning_effort];
     if (!effort) {
         // No thinking requested — ST's server won't set thinking.type, so no error to fix.
         return originalFetch.call(this, url, options);

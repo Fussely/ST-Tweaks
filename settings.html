@@ -16,6 +16,12 @@
                     <input type="checkbox" id="stu_responses_api" />
                     <span>Use Responses API for proxy</span>
                 </label>
+                <div class="stu-suboptions">
+                    <label class="checkbox_label" for="stu_responses_sound">
+                        <input type="checkbox" id="stu_responses_sound" />
+                        <span>Play message sound</span>
+                    </label>
+                </div>
             </div>
             <div class="stu-options">
                 <label class="checkbox_label" for="stu_fix_glm5">
@@ -27,6 +33,18 @@
                 <label class="checkbox_label" for="stu_zai_websearch">
                     <input type="checkbox" id="stu_zai_websearch" />
                     <span>Enable web search for Z.AI</span>
+                </label>
+            </div>
+            <div class="stu-options">
+                <label class="checkbox_label" for="stu_xai_websearch">
+                    <input type="checkbox" id="stu_xai_websearch" />
+                    <span>Enable web search for xAI</span>
+                </label>
+            </div>
+            <div class="stu-options">
+                <label class="checkbox_label" for="stu_oai_websearch">
+                    <input type="checkbox" id="stu_oai_websearch" />
+                    <span>Enable web search for OpenAI</span>
                 </label>
             </div>
             <div class="stu-options">
@@ -49,6 +67,18 @@
                             <option value="5m">5 minutes</option>
                             <option value="1h">1 hour</option>
                         </select>
+                    </div>
+                </div>
+            </div>
+            <div class="stu-options">
+                <label class="checkbox_label" for="stu_custom_effort_enabled">
+                    <input type="checkbox" id="stu_custom_effort_enabled" />
+                    <span>Custom reasoning effort</span>
+                </label>
+                <div class="stu-suboptions">
+                    <div class="stu-row">
+                        <label for="stu_custom_effort">Value</label>
+                        <input type="text" id="stu_custom_effort" class="text_pole stu-small" placeholder="e.g. xhigh" title="Override reasoning effort with a custom value." />
                     </div>
                 </div>
             </div>

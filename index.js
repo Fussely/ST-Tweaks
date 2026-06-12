@@ -5,6 +5,8 @@ import { initResponsesApi } from './features/responses-api.js';
 import { initDropdownLabel, applyLabel } from './features/dropdown-label.js';
 import { initConnectionsTab, setFeatureEnabled } from './features/connections-tab.js';
 import { initZaiWebSearch, setZaiWebSearch } from './features/zai-websearch.js';
+import { initXaiWebSearch, setXaiWebSearch } from './features/xai-websearch.js';
+import { initOaiWebSearch, setOaiWebSearch } from './features/oai-websearch.js';
 import { initThinkingFix } from './features/thinking-fix.js';
 import { initXhighOption, setXhighOption } from './features/xhigh-option.js';
 
@@ -16,10 +18,15 @@ const DEFAULTS = {
     profileResponsesApi: {},
     fixGlm5Name: true,
     zaiWebSearch: false,
+    xaiWebSearch: false,
+    oaiWebSearch: false,
     fixThinkingAdaptive: false,
     cacheSystem: false,
     cacheAtDepth: -1,
     cacheTTL: '5m',
+    responsesApiSound: true,
+    customEffort: '',
+    customEffortEnabled: false,
 };
 
 function getSettings() {
@@ -56,6 +63,14 @@ jQuery(async () => {
         saveSettingsDebounced();
         setFeatureEnabled(this.checked);
         applyLabel();
+    });
+
+    // ── Responses API: message sound ────────────────────────────────
+    const $responsesSoundCheckbox = $('#stu_responses_sound');
+    $responsesSoundCheckbox.prop('checked', settings.responsesApiSound);
+    $responsesSoundCheckbox.on('change', function () {
+        settings.responsesApiSound = this.checked;
+        saveSettingsDebounced();
     });
 
     // ── Fix Z.AI glm-5 → glm-5.0 ─────────────────────────────────
@@ -97,6 +112,19 @@ jQuery(async () => {
         }
     });
 
+    // ST strips reasoning_effort for all xAI models except grok-3-mini before this
+    // event fires. Re-inject it for newer Grok models that support it natively.
+    const XAI_EFFORT_MAP = { min: 'low', low: 'low', medium: 'medium', high: 'high', max: 'high' };
+    eventSource.on(event_types.CHAT_COMPLETION_SETTINGS_READY, (generateData) => {
+        if (generateData.chat_completion_source !== 'xai') return;
+        if (generateData.reasoning_effort) return;
+        if (!/grok-(4\.[2-9]|4\.\d{2,})/.test(String(generateData.model || ''))) return;
+        const raw = document.getElementById('openai_reasoning_effort')?.value;
+        if (!raw) return;
+        const mapped = XAI_EFFORT_MAP[raw];
+        if (mapped) generateData.reasoning_effort = mapped;
+    });
+
     // ── Z.AI Web Search ──────────────────────────────────────────
     const $zaiWebSearchCheckbox = $('#stu_zai_websearch');
     $zaiWebSearchCheckbox.prop('checked', settings.zaiWebSearch);
@@ -104,6 +132,24 @@ jQuery(async () => {
         settings.zaiWebSearch = this.checked;
         saveSettingsDebounced();
         setZaiWebSearch(this.checked);
+    });
+
+    // ── xAI Web Search ────────────────────────────────────────────
+    const $xaiWebSearchCheckbox = $('#stu_xai_websearch');
+    $xaiWebSearchCheckbox.prop('checked', settings.xaiWebSearch);
+    $xaiWebSearchCheckbox.on('change', function () {
+        settings.xaiWebSearch = this.checked;
+        saveSettingsDebounced();
+        setXaiWebSearch(this.checked);
+    });
+
+    // ── OpenAI Web Search (Responses API) ───────────────────────
+    const $oaiWebSearchCheckbox = $('#stu_oai_websearch');
+    $oaiWebSearchCheckbox.prop('checked', settings.oaiWebSearch);
+    $oaiWebSearchCheckbox.on('change', function () {
+        settings.oaiWebSearch = this.checked;
+        saveSettingsDebounced();
+        setOaiWebSearch(this.checked);
     });
 
     // ── Opus 4.7+ adaptive-thinking fix ──────────────────────────
@@ -141,11 +187,34 @@ jQuery(async () => {
         saveSettingsDebounced();
     });
 
+    // ── Custom reasoning effort ──────────────────────────────────
+    const $customEffortCheckbox = $('#stu_custom_effort_enabled');
+    $customEffortCheckbox.prop('checked', settings.customEffortEnabled);
+    $customEffortCheckbox.on('change', function () {
+        settings.customEffortEnabled = this.checked;
+        saveSettingsDebounced();
+    });
+
+    const $customEffortInput = $('#stu_custom_effort');
+    $customEffortInput.val(settings.customEffort);
+    $customEffortInput.on('change', function () {
+        settings.customEffort = this.value.trim();
+        saveSettingsDebounced();
+    });
+
+    // Override reasoning_effort with the custom value for all sources.
+    // The thinking-fix interceptor also reads customEffort for its own bypass path.
+    eventSource.on(event_types.CHAT_COMPLETION_SETTINGS_READY, (generateData) => {
+        const s = getSettings();
+        if (!s.customEffortEnabled || !s.customEffort) return;
+        generateData.reasoning_effort = s.customEffort;
+    });
+
     // ── Feature inits ─────────────────────────────────────────────
     // Order matters: responses-api captures originalFetch at module-load (= native),
     // so we init it first, then thinking-fix captures window.fetch at init time
     // (= responses-api intercept). Runtime chain: thinking-fix → responses-api → native.
-    initResponsesApi(getSettings);
+    initResponsesApi(getSettings, eventSource, event_types);
     initThinkingFix(getSettings);
     initXhighOption(getSettings);
     initDropdownLabel(getSettings, eventSource, event_types);
@@ -157,6 +226,8 @@ jQuery(async () => {
         event_types,
     );
     initZaiWebSearch(getSettings, eventSource, event_types);
+    initXaiWebSearch(getSettings, eventSource, event_types);
+    initOaiWebSearch(getSettings, eventSource, event_types);
 
     // Deferred init: wait for other extensions to finish loading
     setTimeout(() => {
